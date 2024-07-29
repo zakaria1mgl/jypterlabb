@@ -1,20 +1,22 @@
-# Use the latest Ubuntu image
-FROM ubuntu:latest
+# Use a Python base image
+FROM python:3.9-slim
 
-# Update and install required packages
+# Install required packages
 RUN apt-get update && \
-    apt-get install -y python3 python3-pip build-essential && \
+    apt-get install -y \
+        build-essential \
+        python3-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Set the working directory
-WORKDIR /app
-
 # Upgrade pip and setuptools
-RUN pip3 install --upgrade pip setuptools
+RUN pip install --upgrade pip setuptools
 
 # Install JupyterLab
-RUN pip3 install jupyterlab
+RUN pip install jupyterlab
+
+# Set the working directory
+WORKDIR /app
 
 # Expose port 8080
 EXPOSE 8080
