@@ -1,32 +1,29 @@
-#!/bin/bash
+# Use an official Ubuntu as a parent image
+FROM ubuntu:20.04
+
+# Set environment variables to non-interactive to avoid prompts
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies
-sudo apt update
-sudo apt install -y curl
+RUN apt-get update && apt-get install -y curl iptables iptables-persistent lsb-release sudo
 
-# Install the OpenVPN repository key used by the OpenVPN packages
-sudo mkdir -p /etc/apt/keyrings
-curl -fsSL https://packages.openvpn.net/packages-repo.gpg | sudo tee /etc/apt/keyrings/openvpn.asc
+# Install OpenVPN repository key
+RUN mkdir -p /etc/apt/keyrings && curl -fsSL https://packages.openvpn.net/packages-repo.gpg | tee /etc/apt/keyrings/openvpn.asc
 
 # Add the OpenVPN repository
-echo "deb [signed-by=/etc/apt/keyrings/openvpn.asc] https://packages.openvpn.net/openvpn3/debian $(lsb_release -c -s) main" | sudo tee /etc/apt/sources.list.d/openvpn-packages.list
-sudo apt update
+RUN echo "deb [signed-by=/etc/apt/keyrings/openvpn.asc] https://packages.openvpn.net/openvpn3/debian $(lsb_release -c -s) main" | tee /etc/apt/sources.list.d/openvpn-packages.list
 
-# Install OpenVPN Connector setup tool
-sudo apt install -y python3-openvpn-connector-setup
+# Update package lists and install OpenVPN Connector setup tool
+RUN apt-get update && apt-get install -y python3-openvpn-connector-setup
 
 # Enable IP forwarding
-sudo sed -i 's/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/g' /etc/sysctl.conf
-sudo sed -i 's/#net.ipv6.conf.all.forwarding=1/net.ipv6.conf.all.forwarding=1/g' /etc/sysctl.conf
-sudo sysctl -p
+RUN sed -i 's/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/g' /etc/sysctl.conf
+RUN sed -i 's/#net.ipv6.conf.all.forwarding=1/net.ipv6.conf.all.forwarding=1/g' /etc/sysctl.conf
+RUN sysctl -p
 
 # Configure NAT
-IF=$(ip route | grep -m 1 default | awk '{print $5}')
-sudo iptables -t nat -A POSTROUTING -o $IF -j MASQUERADE
-sudo ip6tables -t nat -A POSTROUTING -o $IF -j MASQUERADE
-sudo DEBIAN_FRONTEND=noninteractive apt install -y iptables-persistent
+RUN IF=$(ip route | grep -m 1 default | awk '{print $5}') && iptables -t nat -A POSTROUTING -o $IF -j MASQUERADE
+RUN IF=$(ip route | grep -m 1 default | awk '{print $5}') && ip6tables -t nat -A POSTROUTING -o $IF -j MASQUERADE
 
-# Run openvpn-connector-setup to import ovpn profile and connect to VPN.
-# You will be asked to provide setup token, You can get it from the
-# Linux Connector configuration page in CloudConnexa Portal.
-sudo openvpn-connector-setup
+# Run openvpn-connector-setup
+CMD ["sudo", "openvpn-connector-setup"]
