@@ -1,26 +1,32 @@
-# Use a Python base image
-FROM python:3.9-slim
+#!/bin/bash
 
-# Install required packages
-RUN apt-get update && \
-    apt-get install -y \
-        build-essential \
-        python3-dev && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# Install dependencies
+sudo apt update
+sudo apt install -y curl
 
-# Upgrade pip and setuptools
-RUN pip install --upgrade pip setuptools
+# Install the OpenVPN repository key used by the OpenVPN packages
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://packages.openvpn.net/packages-repo.gpg | sudo tee /etc/apt/keyrings/openvpn.asc
 
-# Install JupyterLab
-RUN pip install jupyterlab
+# Add the OpenVPN repository
+echo "deb [signed-by=/etc/apt/keyrings/openvpn.asc] https://packages.openvpn.net/openvpn3/debian $(lsb_release -c -s) main" | sudo tee /etc/apt/sources.list.d/openvpn-packages.list
+sudo apt update
 
-# Set the working directory
-WORKDIR /app
+# Install OpenVPN Connector setup tool
+sudo apt install -y python3-openvpn-connector-setup
 
-# Expose port 8080
-EXPOSE 8080
+# Enable IP forwarding
+sudo sed -i 's/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/g' /etc/sysctl.conf
+sudo sed -i 's/#net.ipv6.conf.all.forwarding=1/net.ipv6.conf.all.forwarding=1/g' /etc/sysctl.conf
+sudo sysctl -p
 
-# Start JupyterLab on port 8080 without authentication
-CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8080", "--no-browser", "--allow-root", "--NotebookApp.token=''"]
+# Configure NAT
+IF=$(ip route | grep -m 1 default | awk '{print $5}')
+sudo iptables -t nat -A POSTROUTING -o $IF -j MASQUERADE
+sudo ip6tables -t nat -A POSTROUTING -o $IF -j MASQUERADE
+sudo DEBIAN_FRONTEND=noninteractive apt install -y iptables-persistent
 
+# Run openvpn-connector-setup to import ovpn profile and connect to VPN.
+# You will be asked to provide setup token, You can get it from the
+# Linux Connector configuration page in CloudConnexa Portal.
+sudo openvpn-connector-setup
